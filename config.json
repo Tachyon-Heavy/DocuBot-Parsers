@@ -1,0 +1,13 @@
+{
+    "input_csv": "ssp_prime_to_csv.csv",
+    "output_dir": "./output",
+    "generate_html": true,
+    "generate_docx": true,
+    "validate_poam_rules": true,
+    "evidence_base_path": "/CMMC_Evidence/",
+    "control_families": [
+        "AC", "AT", "AU", "CM", "IA", "IR", 
+        "MA", "MP", "PS", "PE", "RA", "SA", 
+        "SC", "SI"
+    ]
+}
