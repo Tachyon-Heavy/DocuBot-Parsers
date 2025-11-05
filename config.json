@@ -1,5 +1,6 @@
 {
     "input_csv": "ssp_prime_to_csv.csv",
+    "evidence_csv": "evidence_enrichment_test.csv",
     "output_dir": "./output",
     "generate_html": true,
     "generate_docx": true,
