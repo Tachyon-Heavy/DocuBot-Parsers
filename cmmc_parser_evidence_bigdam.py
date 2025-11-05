@@ -147,6 +147,8 @@ class CMMCParser:
         # Add SharePoint link if present
         if 'Current_Sharepoint_Link' in row and not pd.isna(row['Current_Sharepoint_Link']) and row['Current_Sharepoint_Link'] != '':
             link = str(row['Current_Sharepoint_Link']).strip()
+            # Clean up the link - remove any URL encoding if needed
+            link = link.replace('%20', ' ').replace('%7C', '|')
             entry_parts.append(f"[{link}]")
         
         # Add description if present
@@ -154,6 +156,8 @@ class CMMCParser:
             description = str(row['Description']).strip()
             # Check if description should be ignored
             if 'IGNORE' not in description.upper():
+                # Don't parse pipes in the description as bullets here
+                # Let the downstream formatting handle it
                 entry_parts.append(description)
         
         # If no description, use File_Name as fallback
@@ -161,7 +165,7 @@ class CMMCParser:
             file_name = str(row['File_Name']).strip()
             entry_parts.append(file_name)
         
-        # Join with space-dash-space if we have both link and description
+        # Join with space-dash-space to create hierarchical structure
         if len(entry_parts) == 2:
             return f"{entry_parts[0]} - {entry_parts[1]}"
         elif entry_parts:
@@ -190,6 +194,44 @@ class CMMCParser:
                 if item.endswith('.'):
                     item = item[:-1].strip()
                 items.append(item)
+        
+        return items
+    
+    def parse_hierarchical_content(self, content):
+        """Parse content with hierarchical structure (dashes for sub-bullets)"""
+        if pd.isna(content) or content == '':
+            return []
+        
+        content = str(content)
+        items = []
+        
+        # First split by semicolons and pipes for main items
+        content = content.replace('|', ';')
+        main_items = content.split(';')
+        
+        for item in main_items:
+            item = item.strip()
+            if not item or item in ['', 'header', 'bullet_1', 'bullet_2']:
+                continue
+            
+            # Check if this item contains sub-bullets (indicated by " - ")
+            if ' - ' in item:
+                # Split only on the first dash to preserve any subsequent dashes
+                parts = item.split(' - ', 1)
+                main_part = parts[0].strip()
+                sub_part = parts[1].strip() if len(parts) > 1 else ''
+                
+                if main_part:
+                    # Create a structured item with main and sub parts
+                    items.append({
+                        'main': main_part,
+                        'sub': sub_part if sub_part else None
+                    })
+            else:
+                # Regular item without sub-bullets
+                if item.endswith('.'):
+                    item = item[:-1].strip()
+                items.append({'main': item, 'sub': None})
         
         return items
     
@@ -511,8 +553,28 @@ class CMMCParser:
             doc.add_heading('Evidence Strings', 3)
             for evidence in evidence_items:
                 if evidence:
-                    p = doc.add_paragraph(style='List Bullet')
-                    p.add_run(evidence)
+                    # Check if evidence contains hierarchical structure (dash after bracket)
+                    if '] - ' in evidence:
+                        # Split on the first "] - " to separate link from description
+                        parts = evidence.split('] - ', 1)
+                        if len(parts) == 2:
+                            # Main bullet with link
+                            p = doc.add_paragraph(style='List Bullet')
+                            p.add_run(parts[0] + ']')  # Add back the closing bracket
+                            
+                            # Sub-bullet with description
+                            sub_p = doc.add_paragraph(style='List Bullet 2')
+                            sub_p.add_run(parts[1])
+                            # Indent the sub-bullet
+                            sub_p.paragraph_format.left_indent = Inches(0.5)
+                        else:
+                            # Regular bullet
+                            p = doc.add_paragraph(style='List Bullet')
+                            p.add_run(evidence)
+                    else:
+                        # Regular bullet without sub-structure
+                        p = doc.add_paragraph(style='List Bullet')
+                        p.add_run(evidence)
     
     def generate_html_files(self, df):
         """Generate HTML files grouped by control family"""
